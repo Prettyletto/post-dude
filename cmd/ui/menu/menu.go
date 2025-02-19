@@ -6,6 +6,7 @@ import (
 	"github.com/Prettyletto/post-dude/cmd/ui/client"
 	"github.com/Prettyletto/post-dude/cmd/ui/collections"
 	"github.com/Prettyletto/post-dude/cmd/ui/input"
+	"github.com/Prettyletto/post-dude/cmd/ui/views"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -61,10 +62,10 @@ type CollectionsPostMsg struct {
 }
 
 type CollectionsFetchedMsg struct {
-	Collections []collections.CollectionItem
+	Collections []views.Collection
 }
 
-func postCollectionsCmd(newCollection collections.CollectionItem) tea.Cmd {
+func postCollectionsCmd(newCollection views.Collection) tea.Cmd {
 	return func() tea.Msg {
 		err := client.PostCollection(newCollection)
 		if err != nil {
@@ -74,6 +75,7 @@ func postCollectionsCmd(newCollection collections.CollectionItem) tea.Cmd {
 		return CollectionsPostMsg{Success: true}
 	}
 }
+
 func fetchCollectionsCmd() tea.Cmd {
 	return func() tea.Msg {
 		collections, err := client.FetchCollections()
@@ -87,7 +89,7 @@ func fetchCollectionsCmd() tea.Cmd {
 
 type MenuModel struct {
 	State            State
-	collections      []collections.CollectionItem
+	collections      []views.Collection
 	menuStyle        MenuStyle
 	MainMenu         list.Model
 	InputModel       tea.Model
@@ -190,7 +192,7 @@ func (m *MenuModel) updateInputScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch msg := msg.(type) {
 	case input.DoneMsg:
-		newCollection := collections.CollectionItem{Name: string(msg)}
+		newCollection := views.Collection{Name: string(msg)}
 		m.State = MainMenuState
 		m.InputModel = nil
 		return m, postCollectionsCmd(newCollection)
@@ -200,6 +202,7 @@ func (m *MenuModel) updateInputScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.InputModel, cmd = m.InputModel.Update(msg)
 	return m, cmd
 }
+
 func (m MenuModel) View() string {
 	switch m.State {
 	case MainMenuState:

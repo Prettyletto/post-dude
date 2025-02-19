@@ -1,46 +1,37 @@
 package collections
 
 import (
+	"github.com/Prettyletto/post-dude/cmd/ui/options"
+	"github.com/Prettyletto/post-dude/cmd/ui/views"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 const (
-	MenuState = iota
-	CollectionOptionsState
+	CollectionsState = iota
+	OptionsState
 )
 
-type CollectionItem struct {
-	Id   int    `json:"id"`
-	Name string `json:"name"`
-}
+type CollectionItem views.Collection
 
 func (c CollectionItem) Title() string       { return c.Name }
 func (c CollectionItem) Description() string { return "" }
 func (c CollectionItem) FilterValue() string { return c.Name }
 
-type CollectionOptionItem struct {
-	title, description string
+type Model struct {
+	State        int
+	list         list.Model
+	optionsModel *options.Model
+	collection   *views.Collection
 }
-
-func (o CollectionOptionItem) Title() string       { return o.title }
-func (o CollectionOptionItem) Description() string { return o.description }
-func (o CollectionOptionItem) FilterValue() string { return "" }
 
 type BackMsg struct{}
 
-type Model struct {
-	State             int
-	list              list.Model
-	collection        CollectionItem
-	collectionOptions list.Model
-}
-
-func New(collections []CollectionItem) *Model {
+func New(collections []views.Collection) *Model {
 	items := make([]list.Item, len(collections))
 	for i, collection := range collections {
-		items[i] = collection
+		items[i] = CollectionItem(collection)
 	}
 
 	const listWidth = 30
@@ -52,83 +43,79 @@ func New(collections []CollectionItem) *Model {
 	l.Styles.PaginationStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
 	return &Model{
-		State: MenuState,
 		list:  l,
+		State: CollectionsState,
 	}
-}
-
-func newOptionsList(collection CollectionItem) list.Model {
-	options := []list.Item{
-		CollectionOptionItem{title: "Add new request", description: "Create a new request"},
-		CollectionOptionItem{title: "Edit", description: "Create a new request"},
-		CollectionOptionItem{title: "Requests", description: "Create a new request"},
-		CollectionOptionItem{title: "Back", description: "Create a new request"},
-	}
-	const optionsWidth = 30
-	optsList := list.New(options, list.NewDefaultDelegate(), optionsWidth, 30)
-	optsList.Title = collection.Name
-	optsList.Styles.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("63"))
-
-	return optsList
 }
 
 func (m *Model) Init() tea.Cmd {
 	return nil
 }
-
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.State {
-	case MenuState:
-		return m.updateMainMenu(msg)
-	case CollectionOptionsState:
-		return m.updateCollectionOptions(msg)
-	default:
-		return m, nil
+	case CollectionsState:
+		return m.updateCollectionsState(msg)
+	case OptionsState:
+		if m.optionsModel == nil {
+			return m, nil
+		}
+		var cmd tea.Cmd
+		var newModel tea.Model
+		newModel, cmd = m.optionsModel.Update(msg)
+
+		if optionModel, ok := newModel.(*options.Model); ok {
+			m.optionsModel = optionModel
+		}
+
+		if _, ok := msg.(options.BackMsg); ok {
+			m.optionsModel = nil
+			m.State = CollectionsState
+		}
+
+		if _, ok := msg.(options.DeletedMsg); ok {
+			m.optionsModel = nil
+			m.State = CollectionsState
+			m.list.RemoveItem(m.list.Index())
+		}
+
+		if updated, ok := msg.(options.UpdatedMsg); ok {
+			m.list.SetItem(m.list.Index(), CollectionItem{Name: updated.Updated})
+		}
+
+		return m, cmd
 	}
+	return m, nil
 }
 
-func (m *Model) updateMainMenu(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) updateCollectionsState(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "enter":
-			m.collection = m.list.SelectedItem().(CollectionItem)
-			m.collectionOptions = newOptionsList(m.collection)
-			m.State = CollectionOptionsState
+			m.State = OptionsState
+			sel := m.list.SelectedItem()
+
+			if collItem, ok := sel.(CollectionItem); ok {
+				m.collection = (*views.Collection)(&collItem)
+				m.optionsModel = options.New(m.collection)
+			}
+
 			return m, nil
 		case "esc", "backspace":
 			return m, func() tea.Msg { return BackMsg{} }
 		}
-
 	}
 	m.list, cmd = m.list.Update(msg)
 	return m, cmd
 }
 
-func (m *Model) updateCollectionOptions(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	m.collectionOptions, cmd = m.collectionOptions.Update(msg)
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "esc", "backspace":
-			m.State = MenuState
-			return m, nil
-		}
-	}
-	return m, cmd
-}
-
 func (m *Model) View() string {
 	switch m.State {
-	case MenuState:
+	case CollectionsState:
 		return m.list.View()
-	case CollectionOptionsState:
-		return m.collectionOptions.View()
-	default:
-		return "Unkown State"
+	case OptionsState:
+		return m.optionsModel.View()
 	}
+	return "Invalid View"
 }

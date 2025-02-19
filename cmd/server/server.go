@@ -29,7 +29,7 @@ func NewServer(addr string) *Server {
 	mux.HandleFunc("POST /collections", collectionHandler.CreateCollectionHandler)
 	mux.HandleFunc("GET /collections", collectionHandler.GetAllCollectionsHandler)
 	mux.HandleFunc("GET /collections/{id}", collectionHandler.GetCollectionHandler)
-	mux.HandleFunc("UPDATE /collections/{id}", collectionHandler.UpdateCollectionHandler)
+	mux.HandleFunc("PUT /collections/{id}", collectionHandler.UpdateCollectionHandler)
 	mux.HandleFunc("DELETE /collections/{id}", collectionHandler.DeleteCollectionHandler)
 
 	s := &Server{httpServer: &http.Server{
